@@ -129,7 +129,27 @@ arm_func memu_store16Oam
     strh r9, [r10]
     bx lr
 
+.equ RIO_REG_DATA,      0xC4
+.equ RIO_REG_DIRECTION, 0xC6
+.equ RIO_REG_CONTROL,   0xC8
+
 arm_func memu_store16Rom
+    ldr r10, =0x080000C4  // GPIO base address
+
+    // Check if the address is in the GPIO range
+    sub r12, r8, r10
+    cmp r12, #4
+    bhi .Lnot_gpio
+
+    @ It's a GPIO write, handle it
+    push {r0-r3, r12, lr}
+    mov r0, r12  // Offset
+    mov r1, r9  // Value
+    bl rio_write
+    pop {r0-r3, r12, lr}
+
+.Lnot_gpio:
+    @ Normal ROM write handling (usually just returns)
     bx lr
 
 arm_func memu_store16Sram

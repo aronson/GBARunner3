@@ -46,6 +46,8 @@
 #include "VirtualMachine/VMUndefinedArmTable.h"
 #include "MemoryEmulator/HiCodeCacheMapping.h"
 #include "VirtualMachine/VMNestedIrq.h"
+#include "Peripherals/romGpio.hpp"
+#include "Peripherals/romGpioRtc.h"
 
 #define DEFAULT_ROM_FILE_PATH           "/rom.gba"
 #define BIOS_FILE_PATH                  "/_gba/bios.bin"
@@ -490,6 +492,11 @@ extern "C" void gbaRunnerMain(int argc, char* argv[])
     setupJit();
     dma_init();
     gbas_init();
+    rio_init();
+    // Patch GPIO registers with SD cache
+    gGpioRegs.gRioGpioData = (u16 *) sdc_loadRomBlockForPatching(0x080000C4);
+    gGpioRegs.gRioGpioDirection = (u16 *) sdc_loadRomBlockForPatching(0x080000C6);
+    gGpioRegs.gRioGpioControl = (u16 *) sdc_loadRomBlockForPatching(0x080000C8);
     dc_flushRange((void*)ROM_LINEAR_DS_ADDRESS, ROM_LINEAR_SIZE);
     dc_flushRange(gGbaBios, sizeof(gGbaBios));
     ic_invalidateAll();

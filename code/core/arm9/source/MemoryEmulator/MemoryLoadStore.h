@@ -1,5 +1,7 @@
 #pragma once
 
+#include "GbaGpio.h"
+
 extern u16 memu_load8Table[16];
 extern u16 memu_load16Table[16];
 extern u16 memu_load32Table[16];
@@ -61,6 +63,8 @@ extern void memu_store8Vram5(void);
 extern void memu_store16Vram5(void);
 extern void memu_store32Vram5(void);
 
+extern void memu_store16Rom(void);
+
 static inline void memu_setLoad8Handler(u32 region, memu_load_store_handler_t handler)
 {
     memu_load8Table[region] = (u32)handler;
@@ -96,6 +100,8 @@ static inline void memu_setStore32Handler(u32 region, memu_load_store_handler_t 
     memu_store32Table[region] = (u32)handler;
     memu_store32WordTable[region] = handler;
 }
+
+void rio_write(u32 addr, u16 val);
 
 #ifdef __cplusplus
 }
