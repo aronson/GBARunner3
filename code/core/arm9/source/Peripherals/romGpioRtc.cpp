@@ -1,164 +1,155 @@
 #include <nds/ndstypes.h>
 #include <cstdlib>
-
 #include "romGpio.hpp"
 #include "romGpioRtc.h"
 
+// RTC command constants
+#define RTC_COMMAND_MAGIC 0x06
+#define RTC_COMMAND_MAGIC_MASK 0x0F
+#define RTC_COMMAND_CMD_MASK 0x70
+#define RTC_COMMAND_CMD_SHIFT 4
+#define RTC_COMMAND_READ 0x80
 
-//based on https://github.com/mgba-emu/mgba/blob/master/src/gba/hardware.c
-
-#define RTC_COMMAND_MAGIC           0x06
-#define RTC_COMMAND_MAGIC_MASK      0x0F
-#define RTC_COMMAND_CMD_MASK        0x70
-#define RTC_COMMAND_CMD_SHIFT       4
-#define RTC_COMMAND_READ            0x80
-
-#define RTC_CMD_RESET       0
-#define RTC_CMD_DATETIME    2
-#define RTC_CMD_FORCE_IRQ   3
-#define RTC_CMD_CONTROL     4
-#define RTC_CMD_TIME        6
-
-static u16 sRtcTransferState = 0;
-static u16 sRtcBits = 0;
-static u16 sRtcBitCount = 0;
-static u16 sRtcCommand = 0;
-static u16 sRtcCommandActive = 0;
-static u16 sRtcBytesLeft = 0;
-
-static u16 sRtcControl = 0;
-
-static u8 sRtcDateTime[8] {
-    0x00,
-    0x01,
-    0x01,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x82 // spec sheet says 82h is the status register value on power on
+// RTC command types
+enum RtcCommand : u16 {
+    RTC_CMD_RESET = 0,
+    RTC_CMD_DATETIME = 2,
+    RTC_CMD_FORCE_IRQ = 3,
+    RTC_CMD_CONTROL = 4,
+    RTC_CMD_TIME = 6
 };
 
-static void updateDateTime() {
+// RTC state
+typedef struct RtcState {
+    u16 transferState = 0;
+    u16 bits = 0;
+    s16 bitCount = 0;
+    u16 command = 0;
+    u16 commandActive = 0;
+    s16 bytesLeft = 0;
+    u8 dateTime[8]{};
+    u16 status = 0;
+} RtcState __aligned(2);
+
+RtcState sRtc = {0};
+
+void updateDateTime() {
     // Hardcoded to a modern 2024 date and 10:09:30
-    *(u32*)&sRtcDateTime[0] = 0x030A0224;
-    *(u32*)&sRtcDateTime[4] = 0x00300910;
+    *(u32 *) &sRtc.dateTime[0] = 0x030A0224;
+    *(u32 *) &sRtc.dateTime[4] = 0x00300910;
 }
 
 void rio_rtcInit() {
-    sRtcTransferState = 0;
-    sRtcBits = 0;
-    sRtcBitCount = 0;
-    sRtcCommand = 0;
-    sRtcCommandActive = 0;
-    sRtcBytesLeft = 0;
-
-    sRtcControl = 0x40;
+    sRtc = {0};
+    sRtc.status = 0x40; // Should be 0x82 if not reset once but doesn't matter for emus
 }
 
-static void processByte() {
-    sRtcBytesLeft--;
-    if (!sRtcCommandActive) {
-        if ((sRtcBits & RTC_COMMAND_MAGIC_MASK) == RTC_COMMAND_MAGIC) {
-            sRtcCommand = sRtcBits;
-            switch ((sRtcCommand & RTC_COMMAND_CMD_MASK) >> RTC_COMMAND_CMD_SHIFT) {
+void processByte() {
+    sRtc.bytesLeft--;
+    if (!sRtc.commandActive) {
+        if ((sRtc.bits & RTC_COMMAND_MAGIC_MASK) == RTC_COMMAND_MAGIC) {
+            sRtc.command = sRtc.bits;
+            auto cmd = static_cast<RtcCommand>((sRtc.command & RTC_COMMAND_CMD_MASK) >> RTC_COMMAND_CMD_SHIFT);
+            switch (cmd) {
                 case RTC_CMD_RESET:
-                    sRtcControl = 0;
-                    sRtcBytesLeft = 0;
+                    *(u64*)&sRtc.dateTime = 0; // clear data
+                    *(u16*)&sRtc.dateTime[1] = 0x0101; // set month, day
+                    sRtc.status = 0;
+                    sRtc.bytesLeft = 0;
                     break;
                 case RTC_CMD_DATETIME:
                     updateDateTime();
-                    sRtcBytesLeft = 7;
+                    sRtc.bytesLeft = 7;
                     break;
                 case RTC_CMD_FORCE_IRQ:
-                    sRtcBytesLeft = 0;
+                    sRtc.bytesLeft = 0;
                     break;
                 case RTC_CMD_CONTROL:
-                    sRtcBytesLeft = 1;
+                    sRtc.bytesLeft = 1;
                     break;
                 case RTC_CMD_TIME:
                     updateDateTime();
-                    sRtcBytesLeft = 3;
+                    sRtc.bytesLeft = 3; // Time data is 3 bytes
                     break;
                 default:
-                    sRtcBytesLeft = 0;
+                    sRtc.bytesLeft = 0;
                     break;
             }
-            sRtcCommandActive = sRtcBytesLeft > 0;
+            sRtc.commandActive = sRtc.bytesLeft > 0;
         }
     } else {
-        switch ((sRtcCommand & RTC_COMMAND_CMD_MASK) >> RTC_COMMAND_CMD_SHIFT) {
+        auto cmd = static_cast<RtcCommand>((sRtc.command & RTC_COMMAND_CMD_MASK) >> RTC_COMMAND_CMD_SHIFT);
+        switch (cmd) {
             case RTC_CMD_FORCE_IRQ:
-                //todo
+                // TODO: Implement force IRQ
                 break;
             case RTC_CMD_CONTROL:
-                sRtcControl = sRtcBits;
+                // Preserve the lower byte and update only the upper byte
+                sRtc.status = sRtc.bits;
+                break;
+            default:
                 break;
         }
     }
 
-    sRtcBits = 0;
-    sRtcBitCount = 0;
-    if (!sRtcBytesLeft) {
-        sRtcCommandActive = 0;
-        sRtcCommand = 0;
+    sRtc.bits = 0;
+    sRtc.bitCount = 0;
+    if (!sRtc.bytesLeft) {
+        sRtc.commandActive = 0;
+        sRtc.command = 0;
     }
 }
 
-static u32 getOutputBit() {
-    if (!sRtcCommandActive)
-        return 0;
+u32 getOutputBit() {
+    if (!sRtc.commandActive) return 0;
     u16 outByte = 0;
-    switch ((sRtcCommand & RTC_COMMAND_CMD_MASK) >> RTC_COMMAND_CMD_SHIFT) {
+    auto cmd = static_cast<RtcCommand>((sRtc.command & RTC_COMMAND_CMD_MASK) >> RTC_COMMAND_CMD_SHIFT);
+    switch (cmd) {
         case RTC_CMD_DATETIME:
         case RTC_CMD_TIME:
-            outByte = sRtcDateTime[7 - sRtcBytesLeft];
+            outByte = sRtc.dateTime[7 - sRtc.bytesLeft];
             break;
         case RTC_CMD_CONTROL:
-            outByte = sRtcControl;
+            outByte = sRtc.status;
             break;
         default:
-            abort();
+            break;
     }
-    return (outByte >> sRtcBitCount) & 1;
+    return (outByte >> sRtc.bitCount) & 1;
 }
 
 void rio_rtcUpdate() {
-    switch (sRtcTransferState) {
+    switch (sRtc.transferState) {
         case 0:
-            if ((gRioGpioData & 5) == 1)
-                sRtcTransferState = 1;
+            if ((gRioGpioData & 5) == 1) sRtc.transferState = 1;
             break;
         case 1:
-            if ((gRioGpioData & 5) == 5)
-                sRtcTransferState = 2;
-            else if ((gRioGpioData & 5) != 1)
-                sRtcTransferState = 0;
+            if ((gRioGpioData & 5) == 5) sRtc.transferState = 2;
+            else if ((gRioGpioData & 5) != 1) sRtc.transferState = 0;
             break;
         case 2:
-            if (!(gRioGpioData & 1))
-                sRtcBits = (sRtcBits & ~(1 << sRtcBitCount)) | (((gRioGpioData >> 1) & 1) << sRtcBitCount);
-            else if (gRioGpioData & 4) {
-                if (sRtcCommand & RTC_COMMAND_READ) {
+            if (!(gRioGpioData & 1)) {
+                sRtc.bits = (sRtc.bits & ~(1 << sRtc.bitCount)) | (((gRioGpioData >> 1) & 1) << sRtc.bitCount);
+            } else if (gRioGpioData & 4) {
+                if (sRtc.command & RTC_COMMAND_READ) {
                     gRioGpioData =
                             (gRioGpioData & gRioGpioDirection) | ((5 | (getOutputBit() << 1)) & ~gRioGpioDirection);
                     rio_invalidate();
-                    if (++sRtcBitCount == 8) {
-                        sRtcBitCount = 0;
-                        if (--sRtcBytesLeft <= 0) {
-                            sRtcCommandActive = 0;
-                            sRtcCommand = 0;
+                    if (++sRtc.bitCount == 8) {
+                        sRtc.bitCount = 0;
+                        if (--sRtc.bytesLeft <= 0) {
+                            sRtc.commandActive = 0;
+                            sRtc.command = 0;
                         }
                     }
-                } else if (++sRtcBitCount == 8)
+                } else if (++sRtc.bitCount == 8) {
                     processByte();
+                }
             } else {
-                sRtcBits = 0;
-                sRtcBitCount = 0;
-                sRtcCommandActive = 0;
-                sRtcCommand = 0;
-                sRtcBytesLeft = 0;
-                sRtcTransferState = gRioGpioData & 1;
+                const u16 control = sRtc.status;
+                sRtc = {0};
+                sRtc.status = control;
+                sRtc.transferState = gRioGpioData & 1;
                 gRioGpioData = (gRioGpioData & gRioGpioDirection) | (1 & ~gRioGpioDirection);
                 rio_invalidate();
             }

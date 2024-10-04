@@ -129,10 +129,6 @@ arm_func memu_store16Oam
     strh r9, [r10]
     bx lr
 
-.equ RIO_REG_DATA,      0xC4
-.equ RIO_REG_DIRECTION, 0xC6
-.equ RIO_REG_CONTROL,   0xC8
-
 arm_func memu_store16Rom
     ldr r10, =0x080000C4  // GPIO base address
 

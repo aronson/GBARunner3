@@ -2,8 +2,8 @@
 #include "Peripherals/romGpio.hpp"
 #include "Peripherals/romGpioRtc.h"
 
-void rio_write(u32 offset, u16 val) {
-    switch (offset) {
+void rio_write(u32 port, u16 val) {
+    switch (port) {
         case 0:  // RIO_REG_DATA
             gRioGpioData = (gRioGpioData & ~gRioGpioDirection) | (val & gRioGpioDirection);
             rio_rtcUpdate();
@@ -15,5 +15,5 @@ void rio_write(u32 offset, u16 val) {
             gRioGpioControl = val & 1;
             break;
     }
-    rio_invalidate();
+    //rio_invalidate();
 }

@@ -486,17 +486,19 @@ extern "C" void gbaRunnerMain(int argc, char* argv[])
     memset((void*)GFX_BG_MAIN, 0, 64 * 1024);
     memset((void*)((u32)GFX_BG_MAIN + 0x40000), 0, 128 * 1024); // vram B
     memset((void*)GFX_OBJ_MAIN, 0, 32 * 1024);
+    // Patch GPIO registers with SD cache
+    const auto first_section = (u32 *) sdc_loadRomBlockForPatching(0x080000C4);
+    gGpioRegs.gRioGpioData = (u16*) first_section;
+    gGpioRegs.gRioGpioDirection = (u16*) first_section + 2;
+    gGpioRegs.gRioGpioControl = (u16 *) sdc_loadRomBlockForPatching(0x080000C8);
+    rio_invalidate();
+    rio_rtcInit();
     memset(emu_ioRegisters, 0, sizeof(emu_ioRegisters));
     memu_initializeArmDispatchTable();
     vm_initializeUndefinedArmTable();
     setupJit();
     dma_init();
     gbas_init();
-    rio_init();
-    // Patch GPIO registers with SD cache
-    gGpioRegs.gRioGpioData = (u16 *) sdc_loadRomBlockForPatching(0x080000C4);
-    gGpioRegs.gRioGpioDirection = (u16 *) sdc_loadRomBlockForPatching(0x080000C6);
-    gGpioRegs.gRioGpioControl = (u16 *) sdc_loadRomBlockForPatching(0x080000C8);
     dc_flushRange((void*)ROM_LINEAR_DS_ADDRESS, ROM_LINEAR_SIZE);
     dc_flushRange(gGbaBios, sizeof(gGbaBios));
     ic_invalidateAll();
