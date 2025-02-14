@@ -13,7 +13,8 @@
 #include "MemoryEmulator/RomDefs.h"
 #include "DmaTransfer.h"
 
-DTCM_DATA dma_state_t dma_state;
+__attribute__((section(".dtcm.dma_state")))
+dma_state_t dma_state;
 
 void dma_immTransfer16(u32 src, u32 dst, u32 byteCount, int srcStep, int dstStep);
 void dma_immTransfer32(u32 src, u32 dst, u32 byteCount, int srcStep, int dstStep);

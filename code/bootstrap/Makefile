@@ -1,12 +1,30 @@
-#---------------------------------------------------------------------------------
-.SUFFIXES:
-#---------------------------------------------------------------------------------
-ifeq ($(strip $(DEVKITARM)),)
-$(error "Please set DEVKITARM in your environment. export DEVKITARM=<path to>devkitARM")
-endif
+# SPDX-License-Identifier: CC0-1.0
+#
+# SPDX-FileContributor: Antonio Niño Díaz, 2023-2024
 
-export TARGET	:=	GBARunner3
-export TOPDIR	:=	$(CURDIR)
+export BLOCKSDS			?= /opt/blocksds/core
+export BLOCKSDSEXT		?= /opt/blocksds/external
+
+export WONDERFUL_TOOLCHAIN	?= /opt/wonderful
+ARM_NONE_EABI_PATH	?= $(WONDERFUL_TOOLCHAIN)/toolchain/gcc-arm-none-eabi/bin/
+
+# User config
+# ===========
+
+NAME 		:= bootstrap
+TARGET		:= bootstrap
+GAME_TITLE	:= GBARunner3
+GAME_SUBTITLE   := By Gericom
+GAME_AUTHOR     := github.com/Gericom/GBARunner3
+GAME_ICON       := 
+
+# DLDI and internal SD slot of DSi
+# --------------------------------
+
+# Root folder of the SD image
+SDROOT          := sdroot
+# Name of the generated image it "DSi-1.sd" for no$gba in DSi mode
+SDIMAGE         := image.bin
 
 # specify a directory which contains the nitro filesystem
 # this is relative to the Makefile
@@ -15,13 +33,6 @@ NITRO_FILES	:= nitrofiles
 else
 NITRO_FILES	:= 
 endif
-
-# These set the information text in the nds file
-GAME_TITLE     := GBARunner 3
-GAME_SUBTITLE1 := By Gericom
-GAME_SUBTITLE2 :=
-
-include $(DEVKITARM)/ds_rules
 
 .PHONY: checkcorearm9 checkarm7 checkarm9 clean
 
@@ -44,9 +55,8 @@ checkarm9:
 	$(MAKE) -C arm9
 
 #---------------------------------------------------------------------------------
-$(TARGET).nds	: $(NITRO_FILES) ../core/arm7/$(TARGET).elf arm9/$(TARGET).elf
-	ndstool	-c $(TARGET).nds -7 ../core/arm7/$(TARGET).elf -9 arm9/$(TARGET).elf \
-	-b $(GAME_ICON) "$(GAME_TITLE);$(GAME_SUBTITLE1);$(GAME_SUBTITLE2)" \
+$(TARGET).nds	: $(NITRO_FILES) arm9/$(TARGET).elf
+	$(BLOCKSDS)/tools/ndstool/ndstool -c $(TARGET).nds -7 ../core/arm7/arm7.bin -9 arm9/bootstrap.bin \
 	$(_ADDFILES)
 ifdef GBAR3_ISNITRO
 	dlditool FatInNitroFS.dldi $(TARGET).nds

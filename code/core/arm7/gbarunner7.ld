@@ -76,7 +76,7 @@ SECTIONS
 	{
 		__arm7_lma__ = LOADADDR(.text);
 		__arm7_start__ = .;
-		KEEP (dldi.o(.text))
+		KEEP (*dldi*.o(.text))
 		KEEP (*(SORT_NONE(.init)))
 		*(.plt)
 		*(.text .stub .text.* .gnu.linkonce.t.*)

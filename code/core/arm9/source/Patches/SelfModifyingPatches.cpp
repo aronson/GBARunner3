@@ -5,7 +5,7 @@
 #include "MemoryEmulator/RomDefs.h"
 #include "SelfModifyingPatches.h"
 
-[[gnu::section(".itcm")]]
+[[gnu::section(".itcm.patch.buffer")]]
 static u32 sPatchCodeBuffer[16 * 3];
 
 void SelfModifyingPatches::PatchSelfModifyingWrite(u32 gbaAddress)

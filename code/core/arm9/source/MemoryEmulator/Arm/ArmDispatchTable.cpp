@@ -47,7 +47,8 @@ extern const void* memu_armStrbRdTable[16];
 extern const void* memu_armLdmRdTable[16];
 extern const void* memu_armStmRdTable[16];
 
-DTCM_DATA u8 memu_armDispatchTable[3][0x280];
+__attribute__((section(".dtcm.dispatch")))
+u8 memu_armDispatchTable[3][0x280];
 
 static bool isLoad(u32 index)
 {
